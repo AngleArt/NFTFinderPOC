@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>NFT Finder!</title>
+		<meta name="description" content="Created by AngleArtNFT (angleart.loopring.eth / 'accwyd [AngleArtNFTs in BIO]#8218' on Discord) - not tested properly, use at your own risk :)">
+    </head>
+    <body>
+		<button id="btnNft">Submit</button>
+		Wallets count: <label id="lblHoldersCount">?</label>
+		 | NFT count: <label id="lblNftCount">?</label>
+		<br />
+		<label id="lblHolders" />
+        
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+		<script>
+			/*  ####################################
+				##### CHANGE HERE TO CONFIGURE ##### 
+				#################################### */
+
+			/* All of this can be collected from the Explorer page for the specific NFT
+			ex.: https://explorer.loopring.io/nft/0x13a7434ba28eee742f3cdbc06f392e826e296a01-0-0x90690b427331e1532dc528a0ed8ca249df68b88e-0xae8bced4af40972476d2836d119dd6ee651963edea95a161a136b0d7c5326b45-10 */
+			var nftId = "0xae8bced4af40972476d2836d119dd6ee651963edea95a161a136b0d7c5326b45";
+			var minterId = "0x13a7434ba28eee742f3cdbc06f392e826e296a01";
+			var tokenAddress = "0x90690b427331e1532dc528a0ed8ca249df68b88e";
+			
+			/* true or false -> Displays the amount of NFT's the address holds 
+			true -> [69] 0x13a7434ba28eee742f3cdbc06f392e826e296a01
+			false -> 0x13a7434ba28eee742f3cdbc06f392e826e296a01 */
+			var showamount = true;
+			
+			/* In the web wallet go to:
+				L2 wallet > Security > Export Account, one of the properties there will be the apiKey
+			!!!!! Be careful not to share your apiKey and ESPECIALLY your privateKey !!!!! */
+			var apiKey = "";
+			
+			/*  ####################################
+				####### END OF CONFIGURATION #######
+				#################################### */
+			
+			var holders = [];
+			var totalNft = 0;
+			var currentOffset = 0;
+			var limit = 500;
+			var nftData;
+			
+			$(document).ready(function() {
+				$.ajaxSetup({
+					headers: { "X-API-KEY": apiKey }
+				});
+			
+				$("#btnNft").click(displayNftData);
+			});
+			
+			function displayNftData(){
+				reset();
+				
+				var nftDatasUri = "https://api3.loopring.io/api/v3/nft/info/nftData?minter=" + minterId + "&tokenAddress=" + tokenAddress + "&nftId=" + nftId;
+					
+				$.get(nftDatasUri, getNftDatasCallback);
+			}
+			
+			function getNftDatasCallback(data, status){
+				nftData = data.nftData;
+				getNftHolders();
+			}
+
+			function getNftHolders() {
+				var getHoldersUri = "https://api3.loopring.io/api/v3/nft/info/nftHolders?nftData=" + nftData + "&offset=" + currentOffset + "&limit=" + limit;
+				
+				$.get(getHoldersUri, getNftHoldersCallback);
+			}
+			
+			function getNftHoldersCallback (data, status){
+				var holderaccountIds = $.map(data.nftHolders, function(holder, i) {
+					return { accountId: holder.accountId, amount: holder.amount };
+				});
+
+				$.each(holderaccountIds, function (i) {
+					addHolderToList(holderaccountIds[i]);
+				});
+				
+				if (holderaccountIds.length == limit) {
+					currentOffset += limit;
+					getNftHolders();
+				} else {
+					displayHolders();
+				}
+			}
+			
+			function displayHolders() {
+				$("#lblHoldersCount").text(holders.length);
+				$("#lblNftCount").text(totalNft);
+				
+				holders.sort((h1, h2) => h2.amount - h1.amount);
+			
+				$.each(holders, function (i) {
+					var accountId = holders[i].accountId;
+					var getAccountGuidUri = "https://api3.loopring.io/api/v3/account?accountId=" + accountId;
+					delay(201 * i).then(() => $.get(getAccountGuidUri, displayHoldersCallback));
+				});
+			}
+			
+			function displayHoldersCallback (data, status){
+				var holder = holders.find(h => h.accountId == data.accountId);
+				$("#lblHolders").append("<br />");
+
+				if (showamount) {
+					$("#lblHolders").append(" [" + holder.amount + "] ");
+				}
+				
+				$("#lblHolders").append(data.owner);
+			};
+			
+			function addHolderToList(accountDto) {
+				var holder = holders.find(h => h.accountId == accountDto.accountId);
+				totalNft += ~~accountDto.amount;
+				
+				if (holder){
+					holder.amount += ~~holder.amount;
+				} else {
+					holders.push({ accountId: accountDto.accountId, amount: ~~accountDto.amount });
+				}
+			}
+			
+			function reset() {
+				$("#btnNft").attr("disabled", true);
+				
+				currentOffset = 0;
+				holders = [];
+				$("#lblHolders").text("");
+				$("#lblNftCount").text("?");
+				$("#lblHoldersCount").text("?");
+			}
+			
+			function delay(time) {
+				return new Promise(resolve => setTimeout(resolve, time));
+			}
+		</script>
+    </body>
+</html>
